@@ -1,0 +1,1 @@
+"""Hours tracking app package."""
