@@ -8,6 +8,65 @@ export interface AuthTokens {
   refresh: string;
 }
 
+export interface ConversationSummary {
+  id: number;
+  job?: number | null;
+  job_title?: string | null;
+  employer: number;
+  employer_name?: string;
+  traveller: number;
+  traveller_name?: string;
+  other_participant_name?: string;
+  last_message_at: string;
+  last_message_preview?: string;
+}
+
+export interface MessageEnvelope {
+  id: number;
+  conversation: number;
+  sender: number;
+  sender_name?: string;
+  body: string;
+  created_at: string;
+  is_system: boolean;
+}
+
+export interface ApplicationRecord {
+  id: number;
+  job: number;
+  job_title?: string | null;
+  applicant: number;
+  applicant_username?: string;
+  applicant_name?: string;
+  applicant_profile_summary?: string;
+  applicant_availability?: string;
+  applicant_bio?: string;
+  applicant_skills?: string[];
+  applicant_profile_picture_url?: string;
+  cover_letter?: string;
+  status: string;
+  submitted_at: string;
+  updated_at: string;
+}
+
+export interface CreateApplicationPayload {
+  job: number;
+  cover_letter?: string;
+  status?: string;
+}
+
+export interface SendConversationPayload {
+  traveller_id: number;
+  employer_id: number;
+  job_id?: number;
+  body: string;
+}
+
+export interface SendConversationResponse {
+  conversation: ConversationSummary;
+  message: MessageEnvelope;
+}
+
 export interface JobHistoryEntry {
   id?: number;
   employer_name: string;
@@ -16,6 +75,13 @@ export interface JobHistoryEntry {
   end_date?: string | null;
   employer_comments?: string;
   rating: number;
+}
+
+export interface CertificationRecord {
+  id: number;
+  name: string;
+  issued_date?: string | null;
+  expiry_date?: string | null;
 }
 
 export interface AuthUser {
@@ -137,6 +203,7 @@ export interface Job extends JobSummary {
   status: string;
   employer: number;
   employer_name?: string;
+  employer_user_id?: number;
   distance_km?: number | null;
 }
 
@@ -178,6 +245,29 @@ export interface JobListParams {
 }
 
 export interface UserProfile extends AuthUser {}
+
+export interface PublicProfile {
+  id: number;
+  first_name?: string;
+  last_name?: string;
+  profile_picture_url?: string;
+  bio?: string;
+  availability?: string;
+  country_of_origin?: string;
+  address_city?: string;
+  address_state?: string;
+  skills?: string[];
+  languages?: string[];
+  job_history?: JobHistoryEntry[];
+  certifications?: CertificationRecord[];
+  employer_profile?: EmployerProfile | null;
+  is_traveller: boolean;
+  is_employer: boolean;
+  global_rating?: number;
+  has_tfn: boolean;
+  has_abn: boolean;
+  has_bank_details: boolean;
+}
 
 export interface AuthResponse {
   user: AuthUser;
@@ -377,6 +467,25 @@ export async function fetchEmployerJobs(): Promise<Job[]> {
   return data;
 }
 
+export async function fetchPublicProfile(profileId: number): Promise<PublicProfile> {
+  const { data } = await api.get<PublicProfile>(`/users/profiles/${profileId}/`);
+  return data;
+}
+
+export async function fetchApplications(params: { jobId?: number } = {}): Promise<ApplicationRecord[]> {
+  const query: Record<string, number> = {};
+  if (params.jobId) {
+    query.job_id = params.jobId;
+  }
+  const { data } = await api.get<ApplicationRecord[]>('/applications/', { params: query });
+  return data;
+}
+
+export async function createApplication(payload: CreateApplicationPayload): Promise<ApplicationRecord> {
+  const { data } = await api.post<ApplicationRecord>('/applications/', payload);
+  return data;
+}
+
 export async function fetchJobs(params: JobListParams = {}) {
   const query: Record<string, string | number> = {};
   Object.entries(params).forEach(([key, value]) => {
@@ -397,6 +506,26 @@ export async function fetchJob(id: string | number) {
 
 export async function createJob(payload: CreateJobPayload): Promise<Job> {
   const { data } = await api.post<Job>('/jobs/', payload);
+  return data;
+}
+
+export async function sendConversationMessage(payload: SendConversationPayload): Promise<SendConversationResponse> {
+  const { data } = await api.post<SendConversationResponse>('/messaging/conversations/send/', payload);
+  return data;
+}
+
+export async function fetchConversations(): Promise<ConversationSummary[]> {
+  const { data } = await api.get<ConversationSummary[]>('/messaging/conversations/');
+  return data;
+}
+
+export async function fetchConversationMessages(conversationId: number): Promise<MessageEnvelope[]> {
+  const { data } = await api.get<MessageEnvelope[]>(`/messaging/conversations/${conversationId}/messages/`);
+  return data;
+}
+
+export async function sendConversationReply(conversationId: number, body: string): Promise<MessageEnvelope> {
+  const { data } = await api.post<MessageEnvelope>(`/messaging/conversations/${conversationId}/messages/`, { body });
   return data;
 }
 

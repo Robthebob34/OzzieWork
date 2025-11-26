@@ -9,6 +9,7 @@ from .utils import geocode_query
 
 class JobSerializer(serializers.ModelSerializer):
     employer_name = serializers.CharField(source="employer.company_name", read_only=True)
+    employer_user_id = serializers.IntegerField(source="employer.user_id", read_only=True)
     distance_km = serializers.FloatField(read_only=True)
 
     class Meta:
@@ -47,6 +48,7 @@ class JobSerializer(serializers.ModelSerializer):
             "updated_at",
             "employer",
             "employer_name",
+            "employer_user_id",
             "distance_km",
         ]
         read_only_fields = (
@@ -54,6 +56,7 @@ class JobSerializer(serializers.ModelSerializer):
             "updated_at",
             "employer",
             "employer_name",
+            "employer_user_id",
             "distance_km",
         )
 

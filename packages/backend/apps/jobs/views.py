@@ -59,12 +59,27 @@ class JobListCreateView(generics.ListCreateAPIView):
         jobs: Iterable[Job] = queryset
         search_coords = geocode_query(search_query) if search_query else None
 
+        def matches_text(job: Job, query: str) -> bool:
+            q = query.lower()
+            fields = [
+                job.location_city,
+                job.location_state,
+                job.location_region,
+                job.location_address,
+                job.location,
+                job.title,
+            ]
+            return any((value or "").lower().find(q) != -1 for value in fields)
+
         if search_query:
             filtered = []
             if search_coords:
                 search_lat, search_lon = search_coords
                 for job in jobs:
                     if job.location_latitude is None or job.location_longitude is None:
+                        if matches_text(job, search_query):
+                            job.distance_km = None
+                            filtered.append(job)
                         continue
                     distance = haversine_km(
                         float(job.location_latitude),
@@ -77,7 +92,7 @@ class JobListCreateView(generics.ListCreateAPIView):
                         filtered.append(job)
                 jobs = filtered
             else:
-                jobs = []
+                jobs = [job for job in jobs if matches_text(job, search_query)]
         else:
             for job in jobs:
                 job.distance_km = None

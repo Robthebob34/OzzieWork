@@ -3,6 +3,7 @@ import Link from 'next/link';
 import useSWR from 'swr';
 import { Layout } from '../../components/Layout';
 import { Job, JobListParams, fetchJobs } from '../../lib/api';
+import { useAuthRedirect } from '../../hooks/useAuthRedirect';
 
 const stateOptions = ['NSW', 'VIC', 'QLD', 'WA', 'SA', 'TAS', 'NT', 'ACT'];
 
@@ -11,8 +12,9 @@ const radiusOptions = [25, 50, 100, 200];
 export default function JobsPage() {
   const [formFilters, setFormFilters] = useState<JobListParams>({ radius_km: 50, limit: 24 });
   const [filters, setFilters] = useState<JobListParams>(formFilters);
+  const { user, initializing, unauthorized } = useAuthRedirect();
 
-  const { data, error, isLoading } = useSWR(['jobs', filters], ([, current]) => fetchJobs(current));
+  const { data, error, isLoading } = useSWR(user ? ['jobs', filters] : null, ([, current]) => fetchJobs(current));
 
   const jobs: Job[] = useMemo(() => {
     if (Array.isArray(data)) return data as Job[];
@@ -21,7 +23,13 @@ export default function JobsPage() {
 
   const handleFilterChange = (field: keyof JobListParams) => (event: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const value = event.target.value;
-    setFormFilters((prev) => ({ ...prev, [field]: value || undefined }));
+    setFormFilters((prev) => {
+      const next = { ...prev, [field]: value || undefined };
+      if (field === 'city') {
+        next.q = value || undefined;
+      }
+      return next;
+    });
   };
 
   const handleRadiusChange = (event: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
@@ -40,6 +48,22 @@ export default function JobsPage() {
     setFilters(resetFilters);
   };
 
+  if (initializing || !user) {
+    return (
+      <Layout title="Browse Jobs">
+        <p className="text-slate-500">Loading your job feed…</p>
+      </Layout>
+    );
+  }
+
+  if (unauthorized) {
+    return (
+      <Layout title="Browse Jobs">
+        <p className="text-slate-500">Redirecting to login…</p>
+      </Layout>
+    );
+  }
+
   return (
     <Layout title="Browse Jobs">
       <div className="space-y-8">
@@ -50,18 +74,18 @@ export default function JobsPage() {
               <h1 className="text-3xl font-semibold text-slate-900">Newest gigs</h1>
               <p className="text-sm text-slate-600">Filter by state, region, or search any town up to a 200 km radius.</p>
             </div>
-            <Link href="/apply" className="text-sm font-medium text-brand-600">
+            <Link href="/jobs/apply/" className="text-sm font-medium text-brand-600">
               Need help applying?
             </Link>
           </div>
-          <form className="mt-6 grid gap-4 lg:grid-cols-[2fr_1fr_1fr_1fr]" onSubmit={handleFiltersSubmit}>
+          <form className="mt-6 grid gap-4 lg:grid-cols-[repeat(3,minmax(0,1fr))]" onSubmit={handleFiltersSubmit}>
             <label className="text-sm font-medium text-slate-600">
-              Search by town / suburb
+              City / Town
               <input
                 type="text"
-                placeholder="e.g. Margaret River"
-                value={formFilters.q || ''}
-                onChange={handleFilterChange('q')}
+                placeholder="e.g. Byron Bay"
+                value={formFilters.city || ''}
+                onChange={handleFilterChange('city')}
                 className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 focus:border-brand-300 focus:ring-2 focus:ring-brand-200"
               />
             </label>
@@ -84,19 +108,9 @@ export default function JobsPage() {
               Region
               <input
                 type="text"
-                placeholder="Far South West"
+                placeholder="Northern Rivers"
                 value={formFilters.region || ''}
                 onChange={handleFilterChange('region')}
-                className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 focus:border-brand-300 focus:ring-2 focus:ring-brand-200"
-              />
-            </label>
-            <label className="text-sm font-medium text-slate-600">
-              City / Town
-              <input
-                type="text"
-                placeholder="Margaret River"
-                value={formFilters.city || ''}
-                onChange={handleFilterChange('city')}
                 className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 focus:border-brand-300 focus:ring-2 focus:ring-brand-200"
               />
             </label>
@@ -161,23 +175,34 @@ export default function JobsPage() {
 
           <div className="grid gap-5 lg:grid-cols-2">
             {jobs.map((job) => (
-              <Link key={job.id} href={`/jobs/${job.id}`} className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition hover:border-brand-200">
-                <div className="flex flex-wrap items-start justify-between gap-3">
-                  <div>
-                    <p className="text-xs uppercase tracking-wide text-brand-600">{job.category.replace('_', ' ')}</p>
-                    <h2 className="text-xl font-semibold text-slate-900">{job.title}</h2>
-                    <p className="text-sm text-slate-500">
-                      {job.location_city || job.location} · {job.location_state || 'Australia'}
-                    </p>
+              <article key={job.id} className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition hover:border-brand-200">
+                <Link href={`/jobs/${job.id}`} className="block">
+                  <div className="flex flex-wrap items-start justify-between gap-3">
+                    <div>
+                      <p className="text-xs uppercase tracking-wide text-brand-600">{job.category.replace('_', ' ')}</p>
+                      <h2 className="text-xl font-semibold text-slate-900">{job.title}</h2>
+                      <p className="text-sm text-slate-500">
+                        {job.location_city || job.location} · {job.location_state || 'Australia'}
+                      </p>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-lg font-semibold text-brand-600">
+                        {job.hourly_rate ? `AUD ${job.hourly_rate}/hr` : job.fixed_salary ? `AUD ${job.fixed_salary}` : 'Rate negotiable'}
+                      </p>
+                      <p className="text-xs text-slate-400">{job.employment_type.replace('_', ' ')}</p>
+                    </div>
                   </div>
-                  <div className="text-right">
-                    <p className="text-lg font-semibold text-brand-600">
-                      {job.hourly_rate ? `AUD ${job.hourly_rate}/hr` : job.fixed_salary ? `AUD ${job.fixed_salary}` : 'Rate negotiable'}
-                    </p>
-                    <p className="text-xs text-slate-400">{job.employment_type.replace('_', ' ')}</p>
-                  </div>
-                </div>
+                </Link>
                 <p className="mt-3 text-sm text-slate-600 line-clamp-3">{job.description}</p>
+                <div className="mt-2 text-sm text-slate-600">
+                  {job.employer_user_id ? (
+                    <Link href={`/profiles/${job.employer_user_id}`} className="font-semibold text-brand-600 hover:text-brand-500">
+                      {job.employer_name || 'View employer profile'}
+                    </Link>
+                  ) : (
+                    <span>{job.employer_name || 'Employer confidential'}</span>
+                  )}
+                </div>
                 <div className="mt-4 flex flex-wrap items-center gap-3 text-xs text-slate-500">
                   {job.start_date && <span>Starts {new Date(job.start_date).toLocaleDateString()}</span>}
                   {job.is_remote_friendly && <span className="rounded-full bg-emerald-50 px-3 py-1 text-emerald-700">Remote friendly</span>}
@@ -185,7 +210,7 @@ export default function JobsPage() {
                     <span className="rounded-full bg-slate-100 px-3 py-1 text-slate-600">{job.distance_km.toFixed(1)} km away</span>
                   )}
                 </div>
-              </Link>
+              </article>
             ))}
           </div>
 

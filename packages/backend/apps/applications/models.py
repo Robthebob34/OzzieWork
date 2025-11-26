@@ -23,5 +23,10 @@ class Application(models.Model):
     submitted_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(fields=["job", "applicant"], name="unique_job_applicant_application")
+        ]
+
     def __str__(self) -> str:  # pragma: no cover - repr helper
         return f"{self.applicant} -> {self.job}"
