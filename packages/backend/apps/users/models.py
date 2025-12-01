@@ -1,8 +1,18 @@
 """User and employer related models."""
 from decimal import Decimal
+import uuid
+
 from django.contrib.auth.models import AbstractUser
 from django.core.validators import MaxValueValidator, MinValueValidator
 from django.db import models
+
+
+def traveller_document_upload_to(instance, filename: str) -> str:
+    """Upload path grouped by owner id to avoid collisions."""
+
+    owner_id = instance.owner_id or "anonymous"
+    extension = filename.split(".")[-1] if "." in filename else "bin"
+    return f"traveller_docs/{owner_id}/{uuid.uuid4()}.{extension}"
 
 
 class User(AbstractUser):
@@ -24,6 +34,8 @@ class User(AbstractUser):
     bank_name = models.CharField(max_length=120, blank=True, default="")
     bank_bsb = models.CharField(max_length=10, blank=True, default="")
     bank_account_number = models.CharField(max_length=32, blank=True, default="")
+    superannuation_account_number = models.CharField(max_length=64, blank=True, default="")
+    superannuation_fund_name = models.CharField(max_length=255, blank=True, default="")
     bio = models.TextField(blank=True, default="")
     availability = models.CharField(max_length=120, blank=True, default="")
     skills = models.JSONField(default=list, blank=True)
@@ -52,6 +64,7 @@ class Employer(models.Model):
     company_name = models.CharField(max_length=255, blank=True, default="")
     company_description = models.TextField(blank=True, default="")
     abn = models.CharField(max_length=32, blank=True, default="")
+    is_suspended = models.BooleanField(default=False)
     verified = models.BooleanField(default=False)
     business_category = models.CharField(max_length=128, blank=True, default="")
     contact_name = models.CharField(max_length=128, blank=True, default="")
@@ -140,3 +153,39 @@ class Certification(models.Model):
 
     def __str__(self) -> str:  # pragma: no cover - repr helper
         return f"{self.name} ({self.user.username})"
+
+
+class TravellerDocument(models.Model):
+    """Files uploaded or generated for a traveller (e.g. payslips, IDs)."""
+
+    CATEGORY_CHOICES = [
+        ("timesheet_pdf", "Timesheet PDF"),
+        ("payslip_pdf", "Payslip PDF"),
+        ("payslip_aba", "Payslip ABA"),
+        ("compliance_image", "Compliance Image"),
+        ("other", "Other"),
+    ]
+
+    owner = models.ForeignKey(User, on_delete=models.CASCADE, related_name="documents")
+    uploaded_by = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="uploaded_documents",
+    )
+    title = models.CharField(max_length=255)
+    category = models.CharField(max_length=32, choices=CATEGORY_CHOICES, default="other")
+    file = models.FileField(upload_to=traveller_document_upload_to)
+    mime_type = models.CharField(max_length=64, blank=True)
+    size_bytes = models.PositiveIntegerField(default=0)
+    source_type = models.CharField(max_length=32, blank=True)
+    source_id = models.PositiveIntegerField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+
+    def __str__(self) -> str:  # pragma: no cover - repr helper
+        return f"{self.title} ({self.category})"

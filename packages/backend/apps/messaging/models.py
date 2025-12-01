@@ -41,6 +41,8 @@ class Message(models.Model):
     body = models.TextField()
     created_at = models.DateTimeField(auto_now_add=True)
     is_system = models.BooleanField(default=False)
+    message_type = models.CharField(max_length=32, default="text")
+    metadata = models.JSONField(blank=True, default=dict)
 
     class Meta:
         ordering = ["created_at"]

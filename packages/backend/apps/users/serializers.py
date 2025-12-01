@@ -4,7 +4,7 @@ from django.contrib.auth.password_validation import validate_password
 from rest_framework import serializers
 from rest_framework_simplejwt.tokens import RefreshToken
 
-from .models import User, Employer, Certification, JobHistory, EmployerWorkerHistory
+from .models import User, Employer, Certification, JobHistory, EmployerWorkerHistory, TravellerDocument
 
 ROLE_CHOICES = (
     ("traveller", "Traveller"),
@@ -46,6 +46,7 @@ class EmployerSerializer(serializers.ModelSerializer):
             "company_name",
             "company_description",
             "abn",
+            "is_suspended",
             "verified",
             "business_category",
             "contact_name",
@@ -117,6 +118,8 @@ class UserSerializer(serializers.ModelSerializer):
             "bank_name",
             "bank_bsb",
             "bank_account_number",
+            "superannuation_account_number",
+            "superannuation_fund_name",
             "bio",
             "availability",
             "skills",
@@ -161,6 +164,8 @@ class UserSerializer(serializers.ModelSerializer):
             "bank_name",
             "bank_bsb",
             "bank_account_number",
+            "superannuation_account_number",
+            "superannuation_fund_name",
             "bio",
             "availability",
             "is_traveller",
@@ -195,6 +200,40 @@ class UserSerializer(serializers.ModelSerializer):
         to_delete = [jh_id for jh_id in existing.keys() if jh_id not in received_ids]
         if to_delete:
             user.job_history.filter(id__in=to_delete).delete()
+
+
+class TravellerDocumentSerializer(serializers.ModelSerializer):
+    file_url = serializers.SerializerMethodField()
+
+    class Meta:
+        model = TravellerDocument
+        fields = [
+            "id",
+            "title",
+            "category",
+            "file",
+            "file_url",
+            "mime_type",
+            "size_bytes",
+            "source_type",
+            "source_id",
+            "created_at",
+            "updated_at",
+        ]
+        read_only_fields = (
+            "mime_type",
+            "size_bytes",
+            "source_type",
+            "source_id",
+            "created_at",
+            "updated_at",
+        )
+
+    def get_file_url(self, obj: TravellerDocument) -> str:
+        request = self.context.get("request")
+        if request and obj.file:
+            return request.build_absolute_uri(obj.file.url)
+        return obj.file.url if obj.file else ""
 
 
 class PublicUserSerializer(serializers.ModelSerializer):

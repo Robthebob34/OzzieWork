@@ -53,7 +53,7 @@ ROOT_URLCONF = "backend_project.urls"
 TEMPLATES = [
     {
         "BACKEND": "django.template.backends.django.DjangoTemplates",
-        "DIRS": [],
+        "DIRS": [BASE_DIR / "templates"],
         "APP_DIRS": True,
         "OPTIONS": {
             "context_processors": [
@@ -92,6 +92,9 @@ USE_TZ = True
 STATIC_URL = "static/"
 STATIC_ROOT = BASE_DIR / "static"
 
+MEDIA_URL = "/media/"
+MEDIA_ROOT = BASE_DIR / "media"
+
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 AUTH_USER_MODEL = "users.User"
 
@@ -118,6 +121,10 @@ CORS_ALLOW_CREDENTIALS = True
 STRIPE_API_KEY = os.getenv("STRIPE_API_KEY", "sk_test_placeholder")
 STRIPE_WEBHOOK_SECRET = os.getenv("STRIPE_WEBHOOK_SECRET", "whsec_placeholder")
 STRIPE_CONNECT_CLIENT_ID = os.getenv("STRIPE_CONNECT_CLIENT_ID", "ca_placeholder")
+
+OZZIEWORK_BANK_NAME = os.getenv("OZZIEWORK_BANK_NAME", "OzzieWork Holdings")
+OZZIEWORK_BANK_BSB = os.getenv("OZZIEWORK_BANK_BSB", "000-000")
+OZZIEWORK_BANK_ACCOUNT = os.getenv("OZZIEWORK_BANK_ACCOUNT", "000000")
 
 AUTH_PROTECTED_PATH_PREFIXES = [
     "/api/applications/",

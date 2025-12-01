@@ -2,7 +2,8 @@
 from django.contrib.auth import get_user_model
 from rest_framework import generics, permissions, status
 from rest_framework.decorators import api_view, permission_classes
-from rest_framework.exceptions import PermissionDenied
+from rest_framework.exceptions import PermissionDenied, ValidationError
+from rest_framework.parsers import MultiPartParser, FormParser
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
@@ -17,9 +18,10 @@ from .serializers import (
     PublicUserSerializer,
     JobHistorySerializer,
     PublicProfileSerializer,
+    TravellerDocumentSerializer,
     build_auth_response,
 )
-from .models import Employer, JobHistory
+from .models import Employer, JobHistory, TravellerDocument
 from apps.jobs.models import Job, JobStatus
 from apps.jobs.serializers import JobSerializer
 
@@ -182,3 +184,33 @@ class PasswordChangeView(APIView):
         serializer.is_valid(raise_exception=True)
         serializer.save()
         return Response({"detail": "Password updated"}, status=status.HTTP_200_OK)
+
+
+class TravellerDocumentListCreateView(generics.ListCreateAPIView):
+    serializer_class = TravellerDocumentSerializer
+    permission_classes = [permissions.IsAuthenticated]
+    parser_classes = [MultiPartParser, FormParser]
+
+    def get_queryset(self):
+        user = self.request.user
+        return TravellerDocument.objects.filter(owner=user).order_by("-created_at")
+
+    def perform_create(self, serializer):
+        user = self.request.user
+        file_obj = self.request.FILES.get("file")
+        if not file_obj:
+            raise ValidationError({"file": "A file upload is required."})
+        serializer.save(
+            owner=user,
+            uploaded_by=user,
+            mime_type=file_obj.content_type or "",
+            size_bytes=file_obj.size or 0,
+        )
+
+
+class TravellerDocumentDetailView(generics.DestroyAPIView):
+    serializer_class = TravellerDocumentSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get_queryset(self):
+        return TravellerDocument.objects.filter(owner=self.request.user)

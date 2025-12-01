@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Working Holiday Payslip</title>
+    <style>
+      body {
+        font-family: "Helvetica", "Arial", sans-serif;
+        margin: 0;
+        padding: 24px;
+        color: #111827;
+        font-size: 13px;
+      }
+      h1,
+      h2,
+      h3,
+      h4 {
+        margin: 0;
+        color: #0f172a;
+      }
+      .section {
+        margin-bottom: 18px;
+        border: 1px solid #e2e8f0;
+        border-radius: 8px;
+        padding: 12px 16px;
+      }
+      .section-title {
+        font-size: 14px;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+        color: #475569;
+        margin-bottom: 8px;
+      }
+      table {
+        width: 100%;
+        border-collapse: collapse;
+        margin-top: 6px;
+      }
+      th,
+      td {
+        padding: 6px;
+        text-align: left;
+        border-bottom: 1px solid #e2e8f0;
+      }
+      th {
+        background: #f8fafc;
+        font-size: 12px;
+        color: #475569;
+        text-transform: uppercase;
+      }
+      .totals td {
+        font-weight: bold;
+      }
+      .summary-grid {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+      }
+      .summary-card {
+        flex: 1 1 45%;
+        border: 1px solid #e2e8f0;
+        border-radius: 6px;
+        padding: 8px;
+        min-width: 180px;
+      }
+      .label {
+        font-size: 11px;
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+        color: #64748b;
+        margin-bottom: 4px;
+      }
+      .value {
+        font-size: 13px;
+        font-weight: 600;
+        color: #0f172a;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>Working Holiday Payslip</h1>
+    <p>Generated on {{ payslip.created_at|date:"d M Y" }} · Reference #{{ payslip.id }}</p>
+
+    <div class="section">
+      <div class="section-title">Parties</div>
+      <div class="summary-grid">
+        <div class="summary-card">
+          <div class="label">Employer</div>
+          <div class="value">{{ payslip.employer_name|default:"Not provided" }}</div>
+          <div>{{ payslip.employer_address|default:"—" }}</div>
+          <div>ABN: {{ payslip.employer_abn|default:"—" }}</div>
+        </div>
+        <div class="summary-card">
+          <div class="label">Traveller</div>
+          <div class="value">{{ payslip.traveller_name|default:"Not provided" }}</div>
+          <div>{{ payslip.traveller_address|default:"—" }}</div>
+          <div>TFN: {{ payslip.traveller_tfn|default:"—" }}</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="section-title">Pay details</div>
+      <div class="summary-grid">
+        <div class="summary-card">
+          <div class="label">Pay period</div>
+          <div class="value">
+            {% if payslip.pay_period_start and payslip.pay_period_end %}
+              {{ payslip.pay_period_start|date:"d M Y" }} → {{ payslip.pay_period_end|date:"d M Y" }}
+            {% else %}
+              Not specified
+            {% endif %}
+          </div>
+        </div>
+        <div class="summary-card">
+          <div class="label">Hours paid</div>
+          <div class="value">{{ payslip.hour_count }} h at {{ payslip.rate_currency }} {{ payslip.rate_amount }}/hr</div>
+        </div>
+        <div class="summary-card">
+          <div class="label">Payment method</div>
+          <div class="value">{{ payslip.payment_method|default:"Bank transfer"|title }}</div>
+        </div>
+        <div class="summary-card">
+          <div class="label">Status</div>
+          <div class="value">{{ payslip.get_status_display }}</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="section-title">Earnings & deductions (AUD)</div>
+      <table>
+        <thead>
+          <tr>
+            <th>Description</th>
+            <th>Amount</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Gross earnings</td>
+            <td>{{ payslip.gross_amount }}</td>
+          </tr>
+          <tr>
+            <td>OzzieWork commission (1%)</td>
+            <td>-{{ payslip.commission_amount }}</td>
+          </tr>
+          <tr>
+            <td>Superannuation (11%)</td>
+            <td>{{ payslip.super_amount }}</td>
+          </tr>
+          <tr>
+            <td>Tax withheld (15%)</td>
+            <td>-{{ payslip.tax_withheld }}</td>
+          </tr>
+          <tr class="totals">
+            <td>Net payment to traveller</td>
+            <td>{{ payslip.net_payment }}</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    {% if payslip.metadata.entries %}
+      <div class="section">
+        <div class="section-title">Approved hours</div>
+        <table>
+          <thead>
+            <tr>
+              <th>Date</th>
+              <th>Hours</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for entry in payslip.metadata.entries %}
+              <tr>
+                <td>{{ entry.entry_date }}</td>
+                <td>{{ entry.hours_worked }}</td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    {% endif %}
+
+    <div class="section">
+      <p>
+        This document is generated automatically by OzzieWork for Working Holiday Visa payroll compliance.
+        Retain a copy for your records.
+      </p>
+    </div>
+  </body>
+</html>

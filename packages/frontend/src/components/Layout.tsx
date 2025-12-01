@@ -27,7 +27,7 @@ function NavLink({ href, label, currentPath }: { href: string; label: string; cu
 }
 
 export function Layout({ title = 'Working Holiday Jobs', children, className }: LayoutProps) {
-  const { user, logout, initializing } = useAuth();
+  const { user, logout, initializing, employerSuspended } = useAuth();
   const [loggingOut, setLoggingOut] = useState(false);
   const router = useRouter();
 
@@ -41,6 +41,7 @@ export function Layout({ title = 'Working Holiday Jobs', children, className }: 
     }
   };
 
+  const showSuspensionNotice = Boolean(user?.is_employer && employerSuspended);
   return (
     <>
       <Head>
@@ -61,12 +62,15 @@ export function Layout({ title = 'Working Holiday Jobs', children, className }: 
                 <NavLink href="/employer/dashboard" label="Dashboard" currentPath={router.pathname} />
                 <NavLink href="/profile" label="Profile" currentPath={router.pathname} />
                 <NavLink href="/employer/applications" label="Applications" currentPath={router.pathname} />
+                <NavLink href="/employer/workers" label="My Workers" currentPath={router.pathname} />
                 <NavLink href="/employer/post-job" label="Post a Job" currentPath={router.pathname} />
               </>
             ) : (
               <>
                 <NavLink href="/profile" label="Profile" currentPath={router.pathname} />
                 <NavLink href="/jobs" label="Browse Jobs" currentPath={router.pathname} />
+                <NavLink href="/traveller/my-jobs" label="My Jobs" currentPath={router.pathname} />
+                <NavLink href="/traveller/documents" label="My Documents" currentPath={router.pathname} />
               </>
             )}
             <NavLink href="/messages" label="Messages" currentPath={router.pathname} />
@@ -93,6 +97,21 @@ export function Layout({ title = 'Working Holiday Jobs', children, className }: 
             )}
           </nav>
         </div>
+        {showSuspensionNotice && (
+          <div className="border-t border-amber-200 bg-amber-50">
+            <div className="mx-auto flex max-w-6xl flex-col gap-2 px-4 py-3 text-sm text-amber-900 sm:flex-row sm:items-center sm:justify-between">
+              <p className="font-medium">
+                Votre accès à certaines fonctionnalités est suspendu en raison d'un paiement en attente. Veuillez confirmer les virements en retard.
+              </p>
+              <Link
+                href="/employer/workers"
+                className="inline-flex items-center justify-center rounded-full border border-amber-300 px-4 py-2 text-xs font-semibold text-amber-800 hover:bg-amber-100"
+              >
+                Consulter mes travailleurs
+              </Link>
+            </div>
+          </div>
+        )}
       </header>
       <main className={clsx('mx-auto max-w-6xl px-4 py-10', className)}>{children}</main>
       <footer className="text-center text-sm text-slate-500 py-6">

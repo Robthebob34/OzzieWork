@@ -39,6 +39,9 @@ function JobListItem({
 
 function ApplicantCard({ applicant }: { applicant: ApplicationRecord }) {
   const skills = applicant.applicant_skills?.slice(0, 3) ?? [];
+  const hasOffer = Boolean(applicant.offer);
+  const actionHref = hasOffer ? `/employer/send-offer/${applicant.id}` : `/employer/send-offer/${applicant.id}`;
+  const actionLabel = hasOffer ? 'Review contract' : 'Hire now';
   return (
     <article className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
       <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
@@ -94,13 +97,12 @@ function ApplicantCard({ applicant }: { applicant: ApplicationRecord }) {
         </div>
         <div className="flex flex-col items-stretch gap-2 text-right">
           <p className="text-xs text-slate-400">Applied {new Date(applicant.submitted_at).toLocaleDateString()}</p>
-          <button
-            type="button"
-            disabled
-            className="rounded-full bg-brand-600 px-4 py-2 text-sm font-semibold text-white shadow disabled:cursor-not-allowed disabled:bg-brand-300"
+          <Link
+            href={actionHref}
+            className="rounded-full bg-brand-600 px-4 py-2 text-sm font-semibold text-white shadow hover:bg-brand-500"
           >
-            Hire now
-          </button>
+            {actionLabel}
+          </Link>
         </div>
       </div>
       {applicant.cover_letter && (

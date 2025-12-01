@@ -21,6 +21,7 @@ import {
 interface AuthContextValue {
   user: AuthUser | null;
   initializing: boolean;
+  employerSuspended: boolean;
   login: (payload: LoginPayload) => Promise<AuthUser>;
   register: (payload: RegisterPayload) => Promise<AuthUser>;
   logout: () => Promise<void>;
@@ -56,6 +57,7 @@ function parseErrorMessage(error: unknown): string {
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<AuthUser | null>(null);
   const [initializing, setInitializing] = useState(true);
+  const [employerSuspended, setEmployerSuspended] = useState(false);
 
   useEffect(() => {
     let mounted = true;
@@ -72,6 +74,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         const profile = await fetchCurrentUser();
         if (mounted) {
           setUser(profile);
+          setEmployerSuspended(Boolean(profile.employer_profile?.is_suspended));
         }
       } catch (error) {
         clearAuthTokens();
@@ -92,6 +95,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const response = await loginUser(payload);
       setAuthTokens(response.tokens);
       setUser(response.user);
+      setEmployerSuspended(Boolean(response.user.employer_profile?.is_suspended));
       return response.user;
     } catch (error) {
       throw new Error(parseErrorMessage(error));
@@ -103,6 +107,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const response = await registerUser(payload);
       setAuthTokens(response.tokens);
       setUser(response.user);
+      setEmployerSuspended(Boolean(response.user.employer_profile?.is_suspended));
       return response.user;
     } catch (error) {
       throw new Error(parseErrorMessage(error));
@@ -127,6 +132,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     try {
       const profile = await fetchCurrentUser();
       setUser(profile);
+      setEmployerSuspended(Boolean(profile.employer_profile?.is_suspended));
       return profile;
     } catch (error) {
       clearAuthTokens();
@@ -139,6 +145,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     try {
       const updated = await updateUserProfile(payload);
       setUser(updated);
+      setEmployerSuspended(Boolean(updated.employer_profile?.is_suspended));
       return updated;
     } catch (error) {
       throw new Error(parseErrorMessage(error));
@@ -154,8 +161,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const value = useMemo(
-    () => ({ user, initializing, login, register, logout, refreshProfile, updateProfile, updatePassword }),
-    [user, initializing]
+    () => ({ user, initializing, employerSuspended, login, register, logout, refreshProfile, updateProfile, updatePassword }),
+    [user, initializing, employerSuspended]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

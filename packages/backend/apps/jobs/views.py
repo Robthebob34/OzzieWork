@@ -3,12 +3,13 @@ from typing import Iterable
 
 from rest_framework import generics, permissions
 from rest_framework.decorators import api_view, permission_classes
-from rest_framework.exceptions import PermissionDenied
+from rest_framework.exceptions import PermissionDenied, ValidationError
 from rest_framework.response import Response
 
 from .models import Job, JobStatus
 from .serializers import JobSerializer
 from .utils import geocode_query, haversine_km
+from apps.users.utils import employer_compliance_gaps, ensure_employer_not_suspended
 
 
 class JobListCreateView(generics.ListCreateAPIView):
@@ -41,7 +42,19 @@ class JobListCreateView(generics.ListCreateAPIView):
         if not getattr(user, "is_employer", False):
             raise PermissionDenied("Only employer accounts can post jobs.")
 
+        ensure_employer_not_suspended(user)
         employer_profile, _ = user.employer_profile.__class__.objects.get_or_create(user=user)
+
+        missing = employer_compliance_gaps(user)
+        if missing:
+            raise ValidationError(
+                {
+                    "detail": "Profil employeur incomplet : complétez vos informations avant de publier un job.",
+                    "missing_fields": missing,
+                    "redirect_url": "/employer/settings",
+                }
+            )
+
         serializer.save(created_by=user, employer=employer_profile)
 
     def list(self, request, *args, **kwargs):
@@ -109,6 +122,24 @@ class JobListCreateView(generics.ListCreateAPIView):
 class JobRetrieveUpdateView(generics.RetrieveUpdateAPIView):
     queryset = Job.objects.all().select_related("employer", "created_by")
     serializer_class = JobSerializer
+
+    def perform_update(self, serializer):
+        user = self.request.user
+        if not getattr(user, "is_employer", False):
+            raise PermissionDenied("Only employer accounts can edit jobs.")
+
+        ensure_employer_not_suspended(user)
+        missing = employer_compliance_gaps(user)
+        if missing:
+            raise ValidationError(
+                {
+                    "detail": "Profil employeur incomplet : complétez vos informations avant de modifier ce job.",
+                    "missing_fields": missing,
+                    "redirect_url": "/employer/settings",
+                }
+            )
+
+        serializer.save()
 
 
 class EmployerJobListView(generics.ListAPIView):

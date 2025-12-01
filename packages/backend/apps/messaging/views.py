@@ -2,11 +2,14 @@
 from django.contrib.auth import get_user_model
 from django.db.models import Q
 from rest_framework import generics, permissions, status
+from rest_framework.exceptions import ValidationError
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from .models import Conversation, Message
 from .serializers import ConversationSerializer, MessageSerializer
+from apps.users.utils import ensure_employer_not_suspended, SUSPENSION_MESSAGE
+from apps.applications.models import JobOffer
 
 User = get_user_model()
 
@@ -32,6 +35,7 @@ class MessageListCreateView(APIView):
 
     def post(self, request, conversation_id):
         conversation = self._get_conversation(conversation_id)
+        self._assert_messaging_allowed(request.user, conversation)
         body = request.data.get("body", "").strip()
         if not body:
             return Response({"body": "Message body is required."}, status=status.HTTP_400_BAD_REQUEST)
@@ -43,10 +47,31 @@ class MessageListCreateView(APIView):
 
     def _get_conversation(self, conversation_id):
         user = self.request.user
-        conversation = Conversation.objects.filter(id=conversation_id).select_related("employer", "traveller").first()
+        conversation = (
+            Conversation.objects.filter(id=conversation_id)
+            .select_related("employer", "traveller", "job")
+            .first()
+        )
         if not conversation or (conversation.employer != user and conversation.traveller != user):
             raise permissions.PermissionDenied("Conversation not found or inaccessible.")
         return conversation
+
+    def _assert_messaging_allowed(self, user, conversation):
+        if not getattr(user, "is_employer", False):
+            return
+        employer_profile = getattr(user, "employer_profile", None)
+        if not employer_profile or not employer_profile.is_suspended:
+            return
+        if self._conversation_has_hired_relationship(conversation):
+            return
+        raise ValidationError({"detail": SUSPENSION_MESSAGE, "code": "employer_suspended"})
+
+    @staticmethod
+    def _conversation_has_hired_relationship(conversation):
+        job = conversation.job
+        if not job:
+            return False
+        return JobOffer.objects.filter(job=job, traveller=conversation.traveller, status="accepted").exists()
 
 
 class ConversationCreateMessageView(APIView):
@@ -70,6 +95,12 @@ class ConversationCreateMessageView(APIView):
         if not traveller or not employer:
             return Response({"detail": "Invalid participant."}, status=status.HTTP_400_BAD_REQUEST)
 
+        if request.user == employer and getattr(request.user, "is_employer", False):
+            if employer.employer_profile and employer.employer_profile.is_suspended:
+                if not (job_id and self._has_hired_relationship(job_id, traveller.id)):
+                    raise ValidationError({"detail": SUSPENSION_MESSAGE, "code": "employer_suspended"})
+            ensure_employer_not_suspended(request.user)
+
         conversation, _ = Conversation.objects.get_or_create(
             traveller=traveller, employer=employer, job_id=job_id
         )
@@ -90,3 +121,9 @@ class ConversationCreateMessageView(APIView):
             },
             status=status.HTTP_201_CREATED,
         )
+
+    @staticmethod
+    def _has_hired_relationship(job_id, traveller_id):
+        if not (job_id and traveller_id):
+            return False
+        return JobOffer.objects.filter(job_id=job_id, traveller_id=traveller_id, status="accepted").exists()

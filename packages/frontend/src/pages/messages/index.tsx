@@ -6,7 +6,9 @@ import clsx from 'clsx';
 
 import { Layout } from '../../components/Layout';
 import {
+  ApplicationCardMessageMetadata,
   ConversationSummary,
+  JobOfferMessageMetadata,
   MessageEnvelope,
   fetchConversations,
   fetchConversationMessages,
@@ -47,17 +49,165 @@ function ConversationItem({
   );
 }
 
-function MessageBubble({ message, isOwn }: { message: MessageEnvelope; isOwn: boolean }) {
+const STATUS_STYLES: Record<string, string> = {
+  pending: 'bg-amber-100 text-amber-800 ring-amber-200',
+  accepted: 'bg-emerald-100 text-emerald-800 ring-emerald-200',
+  declined: 'bg-rose-100 text-rose-700 ring-rose-200',
+  cancelled: 'bg-slate-100 text-slate-600 ring-slate-200',
+};
+
+const formatCurrency = (amount: string, currency: string) => {
+  const numeric = Number(amount);
+  if (Number.isNaN(numeric)) {
+    return `${amount} ${currency}`;
+  }
+  try {
+    return new Intl.NumberFormat('en-AU', {
+      style: 'currency',
+      currency,
+      maximumFractionDigits: 2,
+    }).format(numeric);
+  } catch (error) {
+    return `${currency} ${numeric.toFixed(2)}`;
+  }
+};
+
+const formatDate = (value?: string | null) => {
+  if (!value) return 'Flexible';
+  return new Date(value).toLocaleDateString();
+};
+
+const isJobOfferMetadata = (
+  metadata: MessageEnvelope['metadata']
+): metadata is JobOfferMessageMetadata => {
+  return Boolean(metadata && typeof metadata === 'object' && 'kind' in metadata && metadata.kind === 'job_offer');
+};
+
+const isApplicationCardMetadata = (
+  metadata: MessageEnvelope['metadata']
+): metadata is ApplicationCardMessageMetadata => {
+  return Boolean(metadata && typeof metadata === 'object' && 'kind' in metadata && metadata.kind === 'application_card');
+};
+
+function OfferContractCard({
+  metadata,
+  showCTA,
+}: {
+  metadata: JobOfferMessageMetadata;
+  showCTA: boolean;
+}) {
+  const statusStyle = STATUS_STYLES[metadata.status] ?? STATUS_STYLES.pending;
+  return (
+    <div className="space-y-3">
+      <div className="flex items-center justify-between gap-3">
+        <div>
+          <p className="text-xs uppercase tracking-wide text-slate-400">Contract offer</p>
+          <p className="text-base font-semibold text-slate-900">{metadata.job_title || 'Untitled role'}</p>
+          <p className="text-sm text-slate-500">{metadata.employer_name}</p>
+        </div>
+        <span className={clsx('rounded-full px-3 py-1 text-xs font-semibold ring-1', statusStyle)}>
+          {metadata.status.replace('_', ' ').toUpperCase()}
+        </span>
+      </div>
+      <dl className="grid gap-3 rounded-2xl border border-slate-200 bg-white/80 p-3 text-sm text-slate-600">
+        <div className="flex items-center justify-between">
+          <dt className="font-medium text-slate-900">Start</dt>
+          <dd>{formatDate(metadata.start_date)}</dd>
+        </div>
+        <div className="flex items-center justify-between">
+          <dt className="font-medium text-slate-900">End</dt>
+          <dd>{formatDate(metadata.end_date)}</dd>
+        </div>
+        <div className="flex items-center justify-between">
+          <dt className="font-medium text-slate-900">Rate</dt>
+          <dd>
+            {formatCurrency(metadata.rate_amount, metadata.rate_currency)} · {metadata.rate_type}
+          </dd>
+        </div>
+        {metadata.accommodation_details ? (
+          <div>
+            <dt className="font-medium text-slate-900">Accommodation</dt>
+            <dd className="text-slate-600">{metadata.accommodation_details}</dd>
+          </div>
+        ) : null}
+      </dl>
+      <div className="flex items-center justify-end">
+        {showCTA ? (
+          <Link
+            href={`/traveller/offer-response/${metadata.application_id}`}
+            className="rounded-full bg-slate-900 px-4 py-2 text-xs font-semibold uppercase tracking-wide text-white shadow hover:bg-slate-700"
+          >
+            Review & respond
+          </Link>
+        ) : (
+          <p className="text-xs text-slate-500">View-only summary</p>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function ApplicationCard({ metadata }: { metadata: ApplicationCardMessageMetadata }) {
+  const applicationLink = `/employer/applications?applicationId=${metadata.application_id}`;
+  return (
+    <Link
+      href={applicationLink}
+      className="block rounded-2xl border border-brand-200 bg-white/90 p-4 shadow hover:border-brand-400"
+    >
+      <div className="flex items-center justify-between gap-3">
+        <div>
+          <p className="text-xs uppercase tracking-wide text-brand-500">New application</p>
+          <p className="text-base font-semibold text-slate-900">{metadata.traveller_name || 'Traveller'}</p>
+          <p className="text-sm text-slate-500">{metadata.job_title || 'Job role'}</p>
+        </div>
+        {metadata.status && (
+          <span className="rounded-full bg-amber-100 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-amber-700">
+            {metadata.status.replace('_', ' ')}
+          </span>
+        )}
+      </div>
+      {metadata.cover_letter_preview && (
+        <p className="mt-3 line-clamp-3 text-sm text-slate-600">{metadata.cover_letter_preview}</p>
+      )}
+      <p className="mt-3 text-xs font-semibold text-brand-600">Review application →</p>
+    </Link>
+  );
+}
+
+function MessageBubble({
+  message,
+  isOwn,
+  isTraveller,
+}: {
+  message: MessageEnvelope;
+  isOwn: boolean;
+  isTraveller: boolean;
+}) {
+  const offerMetadata = isJobOfferMetadata(message.metadata) ? message.metadata : null;
+  const applicationMetadata = isApplicationCardMetadata(message.metadata) ? message.metadata : null;
+  const showCTA = Boolean(isTraveller && offerMetadata && offerMetadata.status === 'pending');
   return (
     <div className={clsx('flex', isOwn ? 'justify-end' : 'justify-start')}>
       <div
         className={clsx(
-          'max-w-xl rounded-2xl px-4 py-2 text-sm shadow-sm',
+          'max-w-xl rounded-2xl px-4 py-3 text-sm shadow-sm',
           isOwn ? 'bg-brand-600 text-white' : 'bg-slate-100 text-slate-800'
         )}
       >
-        <p className="whitespace-pre-line">{message.body}</p>
-        <span className={clsx('mt-1 block text-[11px]', isOwn ? 'text-brand-100/80' : 'text-slate-400')}>
+        {offerMetadata ? (
+          <div className="space-y-3">
+            <OfferContractCard metadata={offerMetadata} showCTA={showCTA} />
+            <p className="whitespace-pre-line text-slate-900">{message.body}</p>
+          </div>
+        ) : applicationMetadata ? (
+          <div className="space-y-3">
+            <ApplicationCard metadata={applicationMetadata} />
+            <p className="whitespace-pre-line text-slate-600">{message.body}</p>
+          </div>
+        ) : (
+          <p className="whitespace-pre-line">{message.body}</p>
+        )}
+        <span className={clsx('mt-2 block text-[11px]', isOwn ? 'text-brand-100/80' : 'text-slate-400')}>
           {new Date(message.created_at).toLocaleString()}
         </span>
       </div>
@@ -216,7 +366,12 @@ export default function MessagesPage() {
                   )}
                   {loadingMessages && <p className="text-sm text-slate-400">Loading…</p>}
                   {messages?.map((message) => (
-                    <MessageBubble key={message.id} message={message} isOwn={message.sender === user?.id} />
+                    <MessageBubble
+                      key={message.id}
+                      message={message}
+                      isOwn={message.sender === user?.id}
+                      isTraveller={Boolean(user?.is_traveller)}
+                    />
                   ))}
                   {!messages?.length && !loadingMessages && (
                     <p className="text-sm text-slate-400">Say hi to kick off the conversation.</p>

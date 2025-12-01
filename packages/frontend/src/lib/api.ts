@@ -8,6 +8,17 @@ export interface AuthTokens {
   refresh: string;
 }
 
+export interface ApplicationCardMessageMetadata {
+  kind: 'application_card';
+  application_id: number;
+  job_id: number;
+  job_title?: string | null;
+  traveller_name?: string;
+  status?: string;
+  cover_letter_preview?: string;
+  submitted_at?: string | null;
+}
+
 export interface ConversationSummary {
   id: number;
   job?: number | null;
@@ -29,7 +40,143 @@ export interface MessageEnvelope {
   body: string;
   created_at: string;
   is_system: boolean;
+  message_type?: string;
+  metadata?: JobOfferMessageMetadata | ApplicationCardMessageMetadata | Record<string, unknown> | null;
 }
+
+export type JobOfferStatus = 'pending' | 'accepted' | 'declined' | 'cancelled';
+export type JobOfferRateType = 'hourly' | 'daily';
+
+export interface JobOfferMessageMetadata {
+  kind: 'job_offer';
+  offer_id: number;
+  application_id: number;
+  job_id: number;
+  job_title?: string | null;
+  employer_name?: string;
+  status: JobOfferStatus;
+  contract_type: 'casual';
+  rate_type: JobOfferRateType;
+  rate_amount: string;
+  rate_currency: string;
+  start_date: string;
+  end_date?: string | null;
+  accommodation_details?: string;
+}
+
+export interface JobOffer {
+  id: number;
+  application: number;
+  job: number;
+  job_title?: string | null;
+  employer: number;
+  employer_name?: string;
+  traveller: number;
+  traveller_name?: string;
+  contract_type: 'casual';
+  start_date: string;
+  end_date?: string | null;
+  rate_type: JobOfferRateType;
+  rate_amount: string;
+  rate_currency: string;
+  accommodation_details?: string;
+  notes?: string;
+  status: JobOfferStatus;
+  created_at: string;
+  updated_at: string;
+  timesheet?: Timesheet;
+}
+
+export type TimesheetStatus = 'draft' | 'submitted' | 'approved';
+
+export interface TimesheetEntry {
+  entry_date: string;
+  hours_worked: string;
+  notes?: string;
+  is_locked?: boolean;
+  is_paid?: boolean;
+}
+
+export interface Timesheet {
+  status: TimesheetStatus;
+  traveller_notes?: string;
+  employer_notes?: string;
+  submitted_at?: string | null;
+  approved_at?: string | null;
+  entries: TimesheetEntry[];
+}
+
+export type TravellerDocumentCategory =
+  | 'timesheet_pdf'
+  | 'payslip_pdf'
+  | 'payslip_aba'
+  | 'compliance_image'
+  | 'other';
+
+export interface TravellerDocument {
+  id: number;
+  title: string;
+  category: TravellerDocumentCategory;
+  file: string;
+  file_url: string;
+  mime_type?: string;
+  size_bytes?: number;
+  source_type?: string;
+  source_id?: number | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface UploadTravellerDocumentPayload {
+  title: string;
+  category?: TravellerDocumentCategory;
+  file: File;
+}
+
+export type PayslipStatus = 'processing' | 'completed' | 'failed';
+
+export interface Payslip {
+  id: number;
+  status: PayslipStatus;
+  hour_count: string;
+  rate_amount: string;
+  rate_currency: string;
+  gross_amount: string;
+  commission_amount: string;
+  super_amount: string;
+  net_before_tax: string;
+  tax_withheld: string;
+  net_payment: string;
+  pay_period_start?: string | null;
+  pay_period_end?: string | null;
+  payment_method?: string;
+  employer_name?: string;
+  employer_address?: string;
+  employer_abn?: string;
+  traveller_name?: string;
+  traveller_address?: string;
+  traveller_tfn?: string;
+  metadata?: Record<string, unknown>;
+  instructions_status?: 'pending' | 'instructions_generated' | 'awaiting_bank_import' | 'completed';
+  aba_generated_at?: string | null;
+  pdf_url?: string;
+  aba_url?: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface CreateJobOfferPayload {
+  start_date: string;
+  end_date?: string | null;
+  rate_type: JobOfferRateType;
+  rate_amount: number;
+  rate_currency: string;
+  accommodation_details?: string;
+  notes?: string;
+  contract_type?: 'casual';
+}
+
+export type UpdateJobOfferPayload = Partial<CreateJobOfferPayload & { status: JobOfferStatus }>;
 
 export interface ApplicationRecord {
   id: number;
@@ -45,6 +192,7 @@ export interface ApplicationRecord {
   applicant_profile_picture_url?: string;
   cover_letter?: string;
   status: string;
+  offer?: JobOffer | null;
   submitted_at: string;
   updated_at: string;
 }
@@ -92,6 +240,7 @@ export interface AuthUser {
   last_name?: string;
   is_traveller: boolean;
   is_employer: boolean;
+  employer_profile?: EmployerProfile | null;
   phone?: string;
   country_of_origin?: string;
   address_street?: string;
@@ -118,6 +267,7 @@ export interface EmployerProfile {
   company_name?: string;
   company_description?: string;
   abn?: string;
+  is_suspended?: boolean;
   business_category?: string;
   contact_name?: string;
   contact_phone?: string;
@@ -462,6 +612,28 @@ export async function fetchEmployerStats(): Promise<EmployerStatsPayload> {
   return data;
 }
 
+export async function fetchTravellerDocuments(): Promise<TravellerDocument[]> {
+  const { data } = await api.get<TravellerDocument[]>('/users/documents/');
+  return data;
+}
+
+export async function uploadTravellerDocument(payload: UploadTravellerDocumentPayload): Promise<TravellerDocument> {
+  const formData = new FormData();
+  formData.append('title', payload.title);
+  formData.append('file', payload.file);
+  if (payload.category) {
+    formData.append('category', payload.category);
+  }
+  const { data } = await api.post<TravellerDocument>('/users/documents/', formData, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+  });
+  return data;
+}
+
+export async function deleteTravellerDocument(id: number): Promise<void> {
+  await api.delete(`/users/documents/${id}/`);
+}
+
 export async function fetchEmployerJobs(): Promise<Job[]> {
   const { data } = await api.get<Job[]>('/jobs/mine/');
   return data;
@@ -481,8 +653,96 @@ export async function fetchApplications(params: { jobId?: number } = {}): Promis
   return data;
 }
 
+export async function fetchApplication(applicationId: number): Promise<ApplicationRecord> {
+  const { data } = await api.get<ApplicationRecord>(`/applications/${applicationId}/`);
+  return data;
+}
+
 export async function createApplication(payload: CreateApplicationPayload): Promise<ApplicationRecord> {
   const { data } = await api.post<ApplicationRecord>('/applications/', payload);
+  return data;
+}
+
+export async function fetchJobOffer(applicationId: number): Promise<JobOffer> {
+  const { data } = await api.get<JobOffer>(`/applications/${applicationId}/offer/`);
+  return data;
+}
+
+export async function createJobOffer(
+  applicationId: number,
+  payload: CreateJobOfferPayload
+): Promise<JobOffer> {
+  const { data } = await api.post<JobOffer>(`/applications/${applicationId}/offer/`, payload);
+  return data;
+}
+
+export async function updateJobOffer(
+  applicationId: number,
+  payload: UpdateJobOfferPayload
+): Promise<JobOffer> {
+  const { data } = await api.patch<JobOffer>(`/applications/${applicationId}/offer/`, payload);
+  return data;
+}
+
+export async function fetchEmployerWorkers(): Promise<JobOffer[]> {
+  const { data } = await api.get<JobOffer[]>('/applications/my-workers/');
+  return data;
+}
+
+export async function fetchTravellerJobs(): Promise<JobOffer[]> {
+  const { data } = await api.get<JobOffer[]>('/applications/my-jobs/');
+  return data;
+}
+
+export interface UpdateTimesheetPayload {
+  entries: Array<{
+    entry_date: string;
+    hours_worked: number | string;
+    notes?: string;
+  }>;
+  traveller_notes?: string;
+}
+
+export async function fetchTimesheet(applicationId: number): Promise<Timesheet> {
+  const { data } = await api.get<Timesheet>(`/applications/${applicationId}/timesheet/`);
+  return data;
+}
+
+export async function updateTimesheet(applicationId: number, payload: UpdateTimesheetPayload): Promise<Timesheet> {
+  const { data } = await api.put<Timesheet>(`/applications/${applicationId}/timesheet/`, payload);
+  return data;
+}
+
+export async function submitTimesheet(applicationId: number): Promise<Timesheet> {
+  const { data } = await api.post<Timesheet>(`/applications/${applicationId}/timesheet/submit/`);
+  return data;
+}
+
+export async function approveTimesheet(
+  applicationId: number,
+  payload: { employer_notes?: string }
+): Promise<Timesheet> {
+  const { data } = await api.post<Timesheet>(`/applications/${applicationId}/timesheet/approve/`, payload);
+  return data;
+}
+
+export async function fetchPayslip(applicationId: number): Promise<Payslip | null> {
+  const response = await api.get<Payslip>(`/applications/${applicationId}/payslip/`, {
+    validateStatus: (status) => Boolean(status && [200, 404].includes(status)),
+  });
+  if (response.status === 404) {
+    return null;
+  }
+  return response.data;
+}
+
+export async function createPayslip(applicationId: number): Promise<Payslip> {
+  const { data } = await api.post<Payslip>(`/applications/${applicationId}/payslip/`);
+  return data;
+}
+
+export async function confirmPayslipInstructions(applicationId: number): Promise<Payslip> {
+  const { data } = await api.post<Payslip>(`/applications/${applicationId}/payslip/confirm-instructions/`);
   return data;
 }
 

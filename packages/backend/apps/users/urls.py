@@ -11,6 +11,8 @@ from .views import (
     LogoutView,
     PasswordChangeView,
     PublicProfileView,
+    TravellerDocumentListCreateView,
+    TravellerDocumentDetailView,
     health,
 )
 
@@ -25,5 +27,7 @@ urlpatterns = [
     path("auth/login/", LoginView.as_view(), name="users-login"),
     path("auth/logout/", LogoutView.as_view(), name="users-logout"),
     path("auth/password-change/", PasswordChangeView.as_view(), name="users-password-change"),
+    path("documents/", TravellerDocumentListCreateView.as_view(), name="traveller-documents"),
+    path("documents/<int:pk>/", TravellerDocumentDetailView.as_view(), name="traveller-document-detail"),
     path("health/", health, name="users-health"),
 ]

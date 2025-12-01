@@ -14,6 +14,7 @@ export function useAuthRedirect(redirectTo = '/auth/login', options: Options = {
   const { redirectIfFound = false, requiredRole, unauthorizedRedirectTo } = options;
   const router = useRouter();
   const { user, initializing } = useAuth();
+  const { employerSuspended } = useAuth();
   const [unauthorized, setUnauthorized] = useState(false);
 
   useEffect(() => {
@@ -46,5 +47,5 @@ export function useAuthRedirect(redirectTo = '/auth/login', options: Options = {
     }
   }, [initializing, user, router, redirectIfFound, redirectTo, requiredRole, unauthorizedRedirectTo]);
 
-  return { user, initializing, unauthorized };
+  return { user, initializing, unauthorized, employerSuspended };
 }

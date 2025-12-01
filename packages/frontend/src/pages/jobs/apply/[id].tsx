@@ -40,6 +40,11 @@ export default function JobApplicationPage() {
   const [submitted, setSubmitted] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
+  const [complianceBlocker, setComplianceBlocker] = useState<{
+    message: string;
+    missing: { field?: string; label?: string }[];
+    redirectUrl?: string;
+  } | null>(null);
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -55,17 +60,23 @@ export default function JobApplicationPage() {
 
     setSubmitting(true);
     setSubmitError(null);
+    setComplianceBlocker(null);
 
     const coverLetter = `About me:\n${about.trim()}\n\nAvailability: ${startDate}`;
-    const messageBody = `Job Application for ${job.title} (#${job.id})\n\n${coverLetter}`;
 
     try {
       const applicationPayload: CreateApplicationPayload = {
         job: job.id,
         cover_letter: coverLetter,
       };
-      await createApplication(applicationPayload);
+      const application = await createApplication(applicationPayload);
       await mutateApplicationStatus();
+
+      const applicationUrl = typeof window !== 'undefined'
+        ? `${window.location.origin}/employer/applications?applicationId=${application.id}`
+        : '/employer/applications';
+
+      const messageBody = `Job Application for ${job.title} (#${job.id})\n\n${coverLetter}\n\nSee application: ${applicationUrl}`;
 
       const response = await sendConversationMessage({
         traveller_id: user.id,
@@ -79,12 +90,27 @@ export default function JobApplicationPage() {
       }, 1200);
     } catch (err) {
       if (isAxiosError(err)) {
-        const detail = (err.response?.data as { detail?: string; non_field_errors?: string[] }) || {};
-        const errorMessage = detail.detail || detail.non_field_errors?.[0];
-        if (errorMessage) {
-          setSubmitError(errorMessage);
+        const data = (err.response?.data ?? {}) as {
+          detail?: string;
+          non_field_errors?: string[];
+          missing_fields?: { field?: string; label?: string }[];
+          redirect_url?: string;
+        };
+        if (data.missing_fields?.length) {
+          const message = data.detail || 'Profil incomplet : complétez vos informations pour continuer.';
+          setComplianceBlocker({
+            message,
+            missing: data.missing_fields,
+            redirectUrl: data.redirect_url || '/settings/profile',
+          });
+          setSubmitError(message);
         } else {
-          setSubmitError('Unable to submit your application. Please try again.');
+          const errorMessage = data.detail || data.non_field_errors?.[0];
+          if (errorMessage) {
+            setSubmitError(errorMessage);
+          } else {
+            setSubmitError('Unable to submit your application. Please try again.');
+          }
         }
       } else {
         setSubmitError('Unable to submit your application. Please try again.');
@@ -118,15 +144,31 @@ export default function JobApplicationPage() {
 
         {job && (
           <>
-            <header className="rounded-3xl border border-brand-100 bg-gradient-to-r from-brand-50 to-white p-6 shadow-sm">
-              <p className="text-sm uppercase tracking-wide text-brand-600">Apply for</p>
-              <h1 className="text-3xl font-semibold text-slate-900">{job.title}</h1>
-              <p className="mt-1 text-lg text-slate-600">{job.employer_name ?? 'Employer confidential'}</p>
-              <p className="mt-2 text-sm text-slate-500">
-                {job.location_city || job.location}, {job.location_state || 'Australia'}
-              </p>
+            <header className="rounded-3xl border border-brand-100 bg-white p-6 shadow-sm">
+              <p className="text-sm uppercase tracking-wide text-brand-600">Apply for job</p>
+              <h1 className="text-3xl font-semibold text-slate-900">{job?.title || 'Job application'}</h1>
+              <p className="text-sm text-slate-500">Share your motivation and availability to reach the employer directly.</p>
             </header>
 
+            {complianceBlocker && (
+              <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">
+                <p className="font-semibold">{complianceBlocker.message}</p>
+                <ul className="mt-2 list-disc pl-5">
+                  {complianceBlocker.missing.map((item) => (
+                    <li key={item.field || item.label}>{item.label || item.field}</li>
+                  ))}
+                </ul>
+                <Link
+                  href={complianceBlocker.redirectUrl || '/settings/profile'}
+                  className="mt-3 inline-flex rounded-full bg-brand-600 px-4 py-2 text-xs font-semibold text-white hover:bg-brand-500"
+                >
+                  Mettre à jour mon profil
+                </Link>
+              </div>
+            )}
+            <p className="mt-2 text-sm text-slate-500">
+              {job.location_city || job.location}, {job.location_state || 'Australia'}
+            </p>
             <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
               {alreadyApplied && !submitted ? (
                 <div className="space-y-3 text-center">
